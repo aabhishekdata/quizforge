@@ -21,6 +21,7 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(documents.router)
+app.include_router(decks.subject_router)
 app.include_router(decks.router)
 app.include_router(study.router)
 app.include_router(gamification.router)
@@ -55,10 +56,14 @@ def health():
 def _ensure_lightweight_migrations():
     """Small create_all companion for local/dev installs without Alembic yet."""
     inspector = inspect(engine)
-    if "cards" not in inspector.get_table_names():
+    table_names = inspector.get_table_names()
+    if "users" not in table_names:
         return
-    card_columns = {c["name"] for c in inspector.get_columns("cards")}
+    card_columns = {c["name"] for c in inspector.get_columns("cards")} if "cards" in table_names else set()
+    deck_columns = {c["name"] for c in inspector.get_columns("decks")} if "decks" in table_names else set()
     with engine.begin() as conn:
+        if "subject_id" not in deck_columns:
+            conn.execute(text("ALTER TABLE decks ADD COLUMN subject_id INTEGER"))
         if "card_type" not in card_columns:
             conn.execute(text("ALTER TABLE cards ADD COLUMN card_type VARCHAR(20) DEFAULT 'recall' NOT NULL"))
         if "learning_meta" not in card_columns:

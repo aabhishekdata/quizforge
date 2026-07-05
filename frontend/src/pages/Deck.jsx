@@ -13,6 +13,8 @@ export default function Deck() {
   const [draft, setDraft] = useState({ front: '', back: '' })
   const [shareName, setShareName] = useState('')
   const [groups, setGroups] = useState([])
+  const [subjects, setSubjects] = useState([])
+  const [newSubject, setNewSubject] = useState('')
   const [shareGroupId, setShareGroupId] = useState('')
   const [msg, setMsg] = useState('')
 
@@ -24,6 +26,9 @@ export default function Deck() {
   useEffect(() => {
     if (user?.is_admin) api.get('/api/admin/groups').then(setGroups).catch(() => setGroups([]))
   }, [user?.is_admin])
+  useEffect(() => {
+    api.get('/api/subjects').then(setSubjects).catch(() => setSubjects([]))
+  }, [])
 
   if (!deck) return <p className="text-mist font-num">loading…</p>
   const mine = deck.owner_id === user.id
@@ -48,6 +53,22 @@ export default function Deck() {
   const toggleSmart = async () => {
     const updated = await api.patch(`/api/decks/${id}`, { smart_review: !deck.smart_review })
     setDeck(updated)
+  }
+  const moveSubject = async (subjectId) => {
+    const updated = await api.patch(`/api/decks/${id}`, { subject_id: subjectId ? Number(subjectId) : null })
+    setDeck(updated)
+  }
+  const createAndMoveSubject = async () => {
+    const name = newSubject.trim()
+    if (!name) return
+    setMsg('')
+    try {
+      const subject = await api.post('/api/subjects', { name })
+      setSubjects([...subjects, subject].sort((a, b) => a.name.localeCompare(b.name)))
+      setNewSubject('')
+      const updated = await api.patch(`/api/decks/${id}`, { subject_id: subject.id })
+      setDeck(updated)
+    } catch (e) { setMsg(e.message) }
   }
   const share = async () => {
     setMsg('')
@@ -81,9 +102,27 @@ export default function Deck() {
         <div>
           <h1 className="font-display font-extrabold text-3xl">{deck.title}</h1>
           <p className="text-mist text-sm mt-1">{deck.card_count} cards
+            {deck.subject_name && ` · ${deck.subject_name}`}
             {deck.is_shared_with_me && ` · shared by ${deck.owner_username}`}</p>
         </div>
         <div className="flex items-center gap-3 flex-wrap justify-end">
+          {mine && (
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              <select value={deck.subject_id || ''} onChange={e => moveSubject(e.target.value)}
+                      className="rounded-md bg-board px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-marker">
+                <option value="">Uncategorized</option>
+                {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+              <input value={newSubject} onChange={e => setNewSubject(e.target.value)}
+                     onKeyDown={e => e.key === 'Enter' && createAndMoveSubject()}
+                     placeholder="New subject"
+                     className="w-32 rounded-md bg-board px-3 py-1.5 text-sm placeholder:text-mist focus:outline-none focus:ring-2 focus:ring-marker" />
+              <button onClick={createAndMoveSubject}
+                      className="text-sm rounded-md bg-board px-3 py-1.5 hover:ring-1 hover:ring-marker">
+                Add
+              </button>
+            </div>
+          )}
           <button onClick={() => exportDeck('json')}
                   className="text-sm rounded-md bg-board px-3 py-1.5 hover:ring-1 hover:ring-marker">
             Export JSON

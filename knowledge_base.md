@@ -29,6 +29,7 @@ Current production target:
 ### Product Concepts
 
 - **Deck**: A collection of generated or manually created cards owned by a user.
+- **Subject**: A per-user study domain such as AIGP or CDMP. Decks can belong to one subject.
 - **Card**: A study item with `front`, `back`, difficulty, type, optional MCQ options, and learning metadata.
 - **Document**: An uploaded source file that moves through parsing and generation states.
 - **Subject skeleton**: A document-level concept map generated before card generation. It contains first principles, core concepts, dependencies, and misconceptions.
@@ -103,7 +104,7 @@ backend/app/
   routers/
     auth.py          Register, login, logout, current user
     documents.py     Upload, list, poll document status
-    decks.py         Deck CRUD, card CRUD, sharing, group sharing, import/export
+    decks.py         Subject CRUD, deck CRUD, card CRUD, sharing, group sharing, import/export
     study.py         Study sessions, reviews, completion
     gamification.py  Leaderboard, achievements, admin invites and groups
   services/
@@ -147,9 +148,16 @@ Caddyfile            Alternative Caddy deployment config
 
 - **Deck**
   - `owner_id`, optional `document_id`, `title`, `description`
+  - Optional `subject_id`
   - `is_shared`, `smart_review`
   - Contains cards
   - Can be imported from JSON/CSV or exported as JSON/CSV
+
+- **Subject**
+  - `owner_id`, `name`, `description`
+  - Unique per owner by name.
+  - Deleting a subject leaves its decks uncategorized.
+  - Shared decks keep and display the owner's subject name.
 
 - **Card**
   - `front`, `back`, `difficulty`, `card_type`
@@ -338,16 +346,31 @@ Limits and behavior:
 
 ### Decks And Cards
 
+- `GET /api/subjects`
+  - Lists the current user's subjects with deck counts.
+
+- `POST /api/subjects`
+  - Creates a subject for the current user.
+
+- `PATCH /api/subjects/{subject_id}`
+  - Renames or updates a current-user subject.
+
+- `DELETE /api/subjects/{subject_id}`
+  - Deletes a current-user subject and clears `subject_id` on its decks.
+
 - `GET /api/decks`
   - Lists owned, user-shared, and group-shared decks.
+  - Deck responses include `subject_id` and `subject_name`.
 
 - `POST /api/decks`
   - Creates manual deck.
+  - Optional `subject_id` or `subject_name`.
 
 - `POST /api/decks/import`
   - Multipart deck import.
   - Accepts `.json` and `.csv`.
   - JSON is the canonical QuizForge round-trip format.
+  - JSON subject metadata is matched or created by subject name unless an explicit subject is supplied.
   - CSV accepts `front/back`, `question/answer`, or `term/definition` columns.
   - Optional CSV fields: `difficulty`, `card_type`, `source_ref`, `learning_meta`, `mcq_options`.
 
@@ -364,6 +387,7 @@ Limits and behavior:
 
 - `PATCH /api/decks/{deck_id}`
   - Owner-only edit of title, description, or Smart Review flag.
+  - Owner can move a deck to a subject by `subject_id`, create/match by `subject_name`, or clear to uncategorized.
 
 - `DELETE /api/decks/{deck_id}`
   - Owner-only deletion.
@@ -453,16 +477,21 @@ Authenticated routes:
 ### Upload Workflow
 
 1. User drags or selects a file.
-2. User optionally enables high-quality generation.
-3. Frontend posts multipart form to `/api/documents`.
-4. Frontend polls `/api/documents/{id}` every 2 seconds.
-5. On `ready`, user is redirected to the dashboard.
-6. On `failed`, error is displayed and the user can try another file.
+2. User optionally chooses an existing subject or creates a new subject.
+3. User optionally enables high-quality generation.
+4. Frontend posts multipart form to `/api/documents`.
+5. Frontend polls `/api/documents/{id}` every 2 seconds.
+6. On `ready`, user is redirected to the dashboard.
+7. On `failed`, error is displayed and the user can try another file.
 
 ### Deck Workflow
 
+- Dashboard groups decks by subject and provides an All subjects / subject / Uncategorized filter.
+- Dashboard can create subjects inline.
 - Dashboard has an **Import deck** button for existing JSON or CSV flashcard decks.
 - Deck page shows title, card count, owner/share state, and study modes.
+- Deck page shows the deck subject.
+- Deck owners can move a deck between subjects or Uncategorized.
 - Deck page has **Export JSON** and **Export CSV** buttons.
 - Owner can toggle Smart Review.
 - Owner can edit or delete cards.
@@ -473,8 +502,10 @@ Authenticated routes:
 
 - Import is a lightweight deck creation path, separate from document generation.
 - JSON export is preferred for backups and QuizForge-to-QuizForge migration.
+- JSON export includes the deck subject name.
 - CSV export is preferred for spreadsheet inspection and simple external tools.
 - Imported decks are owned by the current user.
+- Imported JSON subjects are matched case-insensitively or created for the importing user.
 - Import does not preserve source documents, study history, review logs, shares, or per-user FSRS state.
 - Export is available for any accessible deck, including shared decks.
 - Import validation caps deck size at 5000 cards.
@@ -1372,7 +1403,7 @@ Expected:
   - Upload validation, storage, RQ enqueue, document polling.
 
 - `backend/app/routers/decks.py`
-  - Deck and card CRUD, authorization, user sharing, group sharing, due-card counts, JSON/CSV import and export endpoints.
+  - Subject CRUD, deck and card CRUD, authorization, user sharing, group sharing, due-card counts, JSON/CSV import and export endpoints.
 
 - `backend/app/routers/study.py`
   - Session selection, review submission, XP, streaks, achievements, Smart Review scheduling.

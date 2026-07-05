@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -67,3 +67,39 @@ def logout(response: Response):
 @router.get("/me", response_model=schemas.UserOut)
 def me(user: models.User = Depends(current_user), db: Session = Depends(get_db)):
     return _user_out(db, user)
+
+
+@router.post("/password/change")
+def change_password(
+    body: schemas.PasswordChangeIn,
+    user: models.User = Depends(current_user),
+    db: Session = Depends(get_db),
+):
+    if not verify_password(body.current_password, user.password_hash):
+        raise HTTPException(400, "Current password is incorrect")
+    user.password_hash = hash_password(body.new_password)
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/password/reset", response_model=schemas.UserOut)
+def reset_password(body: schemas.PasswordResetIn, response: Response, db: Session = Depends(get_db)):
+    target = db.scalar(select(models.User).where(models.User.username == body.username.strip()))
+    if not target:
+        raise HTTPException(400, "Reset code is invalid or expired")
+
+    cutoff = datetime.utcnow() - timedelta(hours=24)
+    code = db.scalar(select(models.PasswordResetCode).where(
+        models.PasswordResetCode.user_id == target.id,
+        models.PasswordResetCode.code == body.reset_code.strip().upper(),
+        models.PasswordResetCode.used_at.is_(None),
+        models.PasswordResetCode.created_at >= cutoff,
+    ))
+    if not code:
+        raise HTTPException(400, "Reset code is invalid or expired")
+
+    target.password_hash = hash_password(body.new_password)
+    code.used_at = datetime.utcnow()
+    db.commit()
+    set_session(response, target.id)
+    return _user_out(db, target)

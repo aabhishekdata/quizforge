@@ -35,6 +35,16 @@ class InviteCode(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
+class PasswordResetCode(Base):
+    __tablename__ = "password_reset_codes"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    code: Mapped[str] = mapped_column(String(16), unique=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
 class DocStatus(str, enum.Enum):
     pending = "pending"
     parsing = "parsing"
@@ -56,11 +66,26 @@ class Document(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
+class Subject(Base):
+    __tablename__ = "subjects"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    name: Mapped[str] = mapped_column(String(80))
+    description: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    owner = relationship("User")
+    decks = relationship("Deck", back_populates="subject")
+
+    __table_args__ = (UniqueConstraint("owner_id", "name"),)
+
+
 class Deck(Base):
     __tablename__ = "decks"
     id: Mapped[int] = mapped_column(primary_key=True)
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     document_id: Mapped[int | None] = mapped_column(ForeignKey("documents.id"), nullable=True)
+    subject_id: Mapped[int | None] = mapped_column(ForeignKey("subjects.id"), nullable=True)
     title: Mapped[str] = mapped_column(String(200))
     description: Mapped[str] = mapped_column(Text, default="")
     is_shared: Mapped[bool] = mapped_column(Boolean, default=False)  # private by default
@@ -68,6 +93,7 @@ class Deck(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     owner = relationship("User", back_populates="decks")
+    subject = relationship("Subject", back_populates="decks")
     cards = relationship("Card", back_populates="deck", cascade="all, delete-orphan")
 
 

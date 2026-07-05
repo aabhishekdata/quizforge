@@ -22,7 +22,7 @@ def _delete_partial_deck(db, deck: models.Deck | None):
     db.commit()
 
 
-def generate_deck_from_document(document_id: int, high_quality: bool = False):
+def generate_deck_from_document(document_id: int, high_quality: bool = False, subject_id: int | None = None):
     db = SessionLocal()
     doc = db.get(models.Document, document_id)
     if not doc:
@@ -53,6 +53,7 @@ def generate_deck_from_document(document_id: int, high_quality: bool = False):
         deck = models.Deck(
             owner_id=doc.owner_id,
             document_id=doc.id,
+            subject_id=subject_id,
             title=title,
             description=f"Generated from {doc.filename}. Subject map: {subject}",
         )

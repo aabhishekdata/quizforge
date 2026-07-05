@@ -11,12 +11,66 @@ from ..services import xp
 from ..services import deck_io
 
 router = APIRouter(prefix="/api/decks", tags=["decks"])
+subject_router = APIRouter(prefix="/api/subjects", tags=["subjects"])
 
 
 def _download_filename(title: str, ext: str) -> str:
     safe = "".join(ch.lower() if ch.isalnum() else "-" for ch in title).strip("-")
     safe = "-".join(part for part in safe.split("-") if part) or "deck"
     return f"{safe[:80]}.{ext}"
+
+
+def _clean_subject_name(name: str | None) -> str | None:
+    cleaned = (name or "").strip()
+    return cleaned[:80] if cleaned else None
+
+
+def _subject_for_user(db: Session, subject_id: int, user: models.User) -> models.Subject:
+    subject = db.get(models.Subject, subject_id)
+    if not subject or subject.owner_id != user.id:
+        raise HTTPException(404, "Subject not found")
+    return subject
+
+
+def _find_subject_by_name(db: Session, owner_id: int, name: str) -> models.Subject | None:
+    return db.scalar(
+        select(models.Subject).where(
+            models.Subject.owner_id == owner_id,
+            func.lower(models.Subject.name) == name.lower(),
+        )
+    )
+
+
+def _resolve_subject(
+    db: Session,
+    user: models.User,
+    subject_id: int | None = None,
+    subject_name: str | None = None,
+    create_by_name: bool = True,
+) -> models.Subject | None:
+    if subject_id is not None:
+        return _subject_for_user(db, subject_id, user)
+    cleaned = _clean_subject_name(subject_name)
+    if not cleaned:
+        return None
+    existing = _find_subject_by_name(db, user.id, cleaned)
+    if existing or not create_by_name:
+        return existing
+    subject = models.Subject(owner_id=user.id, name=cleaned, description="")
+    db.add(subject)
+    db.flush()
+    return subject
+
+
+def _subject_out(db: Session, subject: models.Subject) -> schemas.SubjectOut:
+    deck_count = db.scalar(select(func.count(models.Deck.id)).where(models.Deck.subject_id == subject.id)) or 0
+    return schemas.SubjectOut(
+        id=subject.id,
+        name=subject.name,
+        description=subject.description,
+        deck_count=deck_count,
+        created_at=subject.created_at,
+    )
 
 
 def _accessible_deck(db: Session, deck_id: int, user: models.User) -> models.Deck:
@@ -53,12 +107,78 @@ def _deck_out(db: Session, deck: models.Deck, user: models.User) -> schemas.Deck
                    models.CardReview.user_id == user.id,
                    models.CardReview.due <= datetime.utcnow())) or 0
     owner = db.get(models.User, deck.owner_id)
+    subject = db.get(models.Subject, deck.subject_id) if deck.subject_id else None
     return schemas.DeckOut(
         id=deck.id, title=deck.title, description=deck.description,
         owner_id=deck.owner_id, owner_username=owner.username if owner else "",
         is_shared_with_me=deck.owner_id != user.id,
+        subject_id=subject.id if subject else None,
+        subject_name=subject.name if subject else None,
         smart_review=deck.smart_review, card_count=card_count,
         due_count=due_count, created_at=deck.created_at)
+
+
+@subject_router.get("", response_model=list[schemas.SubjectOut])
+def list_subjects(user: models.User = Depends(current_user), db: Session = Depends(get_db)):
+    subjects = db.scalars(
+        select(models.Subject)
+        .where(models.Subject.owner_id == user.id)
+        .order_by(models.Subject.name.asc())
+    ).all()
+    return [_subject_out(db, subject) for subject in subjects]
+
+
+@subject_router.post("", response_model=schemas.SubjectOut)
+def create_subject(
+    body: schemas.SubjectCreate,
+    user: models.User = Depends(current_user),
+    db: Session = Depends(get_db),
+):
+    name = _clean_subject_name(body.name)
+    if not name:
+        raise HTTPException(400, "Subject name is required")
+    if _find_subject_by_name(db, user.id, name):
+        raise HTTPException(400, "Subject already exists")
+    subject = models.Subject(owner_id=user.id, name=name, description=body.description.strip()[:5000])
+    db.add(subject)
+    db.commit()
+    db.refresh(subject)
+    return _subject_out(db, subject)
+
+
+@subject_router.patch("/{subject_id}", response_model=schemas.SubjectOut)
+def update_subject(
+    subject_id: int,
+    body: schemas.SubjectUpdate,
+    user: models.User = Depends(current_user),
+    db: Session = Depends(get_db),
+):
+    subject = _subject_for_user(db, subject_id, user)
+    if body.name is not None:
+        name = _clean_subject_name(body.name)
+        if not name:
+            raise HTTPException(400, "Subject name is required")
+        existing = _find_subject_by_name(db, user.id, name)
+        if existing and existing.id != subject.id:
+            raise HTTPException(400, "Subject already exists")
+        subject.name = name
+    if body.description is not None:
+        subject.description = body.description.strip()[:5000]
+    db.commit()
+    return _subject_out(db, subject)
+
+
+@subject_router.delete("/{subject_id}")
+def delete_subject(
+    subject_id: int,
+    user: models.User = Depends(current_user),
+    db: Session = Depends(get_db),
+):
+    subject = _subject_for_user(db, subject_id, user)
+    db.query(models.Deck).filter_by(subject_id=subject.id).update({"subject_id": None})
+    db.delete(subject)
+    db.commit()
+    return {"ok": True}
 
 
 @router.get("", response_model=list[schemas.DeckOut])
@@ -84,7 +204,13 @@ def list_decks(user: models.User = Depends(current_user), db: Session = Depends(
 @router.post("", response_model=schemas.DeckOut)
 def create_deck(body: schemas.DeckCreate, user: models.User = Depends(current_user),
                 db: Session = Depends(get_db)):
-    deck = models.Deck(owner_id=user.id, title=body.title, description=body.description)
+    subject = _resolve_subject(db, user, body.subject_id, body.subject_name)
+    deck = models.Deck(
+        owner_id=user.id,
+        subject_id=subject.id if subject else None,
+        title=body.title,
+        description=body.description,
+    )
     db.add(deck)
     db.commit()
     xp.grant(db, user.id, "first_deck")
@@ -96,12 +222,20 @@ def create_deck(body: schemas.DeckCreate, user: models.User = Depends(current_us
 async def import_deck(
     file: UploadFile = File(...),
     title: str | None = Form(None),
+    subject_id: int | None = Form(None),
+    subject_name: str | None = Form(None),
     user: models.User = Depends(current_user),
     db: Session = Depends(get_db),
 ):
     data = await file.read()
     imported = deck_io.parse_import(file.filename or "", data, title=title)
-    deck = models.Deck(owner_id=user.id, title=imported.title, description=imported.description)
+    subject = _resolve_subject(db, user, subject_id, subject_name or imported.subject_name)
+    deck = models.Deck(
+        owner_id=user.id,
+        subject_id=subject.id if subject else None,
+        title=imported.title,
+        description=imported.description,
+    )
     db.add(deck)
     db.flush()
     for card in imported.cards:
@@ -154,6 +288,9 @@ def update_deck(deck_id: int, body: schemas.DeckUpdate,
         deck.smart_review = body.smart_review
         if body.smart_review:
             xp.grant(db, user.id, "smart_start")
+    if "subject_id" in body.model_fields_set or "subject_name" in body.model_fields_set:
+        subject = _resolve_subject(db, user, body.subject_id, body.subject_name)
+        deck.subject_id = subject.id if subject else None
     db.commit()
     return _deck_out(db, deck, user)
 

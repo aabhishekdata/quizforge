@@ -9,6 +9,7 @@ import Study from './pages/Study.jsx'
 import Leaderboard from './pages/Leaderboard.jsx'
 import Achievements from './pages/Achievements.jsx'
 import Admin from './pages/Admin.jsx'
+import Profile from './pages/Profile.jsx'
 
 const AuthCtx = createContext(null)
 export const useAuth = () => useContext(AuthCtx)
@@ -37,7 +38,7 @@ function XPBar({ user }) {
   )
 }
 
-function Nav({ theme, setTheme }) {
+function Nav({ theme, setTheme, comicMode, setComicMode }) {
   const { user, refresh, setUser } = useAuth()
   const nav = useNavigate()
   const logout = async () => {
@@ -50,14 +51,15 @@ function Nav({ theme, setTheme }) {
   return (
     <header className="border-b border-board/80">
       <div className="max-w-5xl mx-auto px-4 py-3 flex items-center gap-4 flex-wrap">
-        <Link to="/" className="font-display font-extrabold text-xl tracking-tight">
-          Quiz<span className="marker-underline text-ink px-0.5 bg-clip-border">Forge</span>
+        <Link to="/" className="brand-logo font-display font-extrabold text-xl tracking-tight">
+          Quiz<span className="marker-block">Forge</span>
         </Link>
         <nav className="flex gap-1 flex-wrap">
           <NavLink to="/" end className={link}>Decks</NavLink>
           <NavLink to="/upload" className={link}>Upload</NavLink>
           <NavLink to="/leaderboard" className={link}>Leaderboard</NavLink>
           <NavLink to="/achievements" className={link}>Badges</NavLink>
+          <NavLink to="/profile" className={link}>Profile</NavLink>
           {user?.is_admin && <NavLink to="/admin" className={link}>Invites</NavLink>}
         </nav>
         <div className="ml-auto flex items-center gap-3 flex-wrap justify-end">
@@ -71,6 +73,16 @@ function Nav({ theme, setTheme }) {
           >
             {themes.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
           </select>
+          <button
+            type="button"
+            onClick={() => setComicMode(!comicMode)}
+            className={`comic-switch ${comicMode ? 'is-on' : ''}`}
+            aria-pressed={comicMode}
+            title="Comic mode"
+          >
+            <span className="comic-switch-knob" />
+            <span className="comic-switch-label">Comic</span>
+          </button>
           {user && <XPBar user={user} />}
           <button onClick={logout} className="text-sm text-mist hover:text-card">Sign out</button>
         </div>
@@ -82,6 +94,7 @@ function Nav({ theme, setTheme }) {
 export default function App() {
   const [user, setUser] = useState(undefined) // undefined = loading
   const [theme, setTheme] = useState(() => localStorage.getItem('qf_theme') || 'classic')
+  const [comicMode, setComicMode] = useState(() => localStorage.getItem('qf_comic_mode') === '1')
   const refresh = useCallback(async () => {
     try { setUser(await api.get('/api/auth/me')) } catch { setUser(null) }
   }, [])
@@ -91,6 +104,10 @@ export default function App() {
     document.documentElement.dataset.theme = active
     localStorage.setItem('qf_theme', active)
   }, [theme])
+  useEffect(() => {
+    document.documentElement.dataset.layout = comicMode ? 'comic' : 'standard'
+    localStorage.setItem('qf_comic_mode', comicMode ? '1' : '0')
+  }, [comicMode])
 
   if (user === undefined) {
     return <div className="min-h-screen grid place-items-center text-mist font-num">loading…</div>
@@ -100,7 +117,7 @@ export default function App() {
     <AuthCtx.Provider value={{ user, setUser, refresh }}>
       {user ? (
         <>
-          <Nav theme={theme} setTheme={setTheme} />
+          <Nav theme={theme} setTheme={setTheme} comicMode={comicMode} setComicMode={setComicMode} />
           <main className="max-w-5xl mx-auto px-4 py-8">
             <Routes>
               <Route path="/" element={<Dashboard />} />
@@ -109,6 +126,7 @@ export default function App() {
               <Route path="/decks/:id/study/:mode" element={<Study />} />
               <Route path="/leaderboard" element={<Leaderboard />} />
               <Route path="/achievements" element={<Achievements />} />
+              <Route path="/profile" element={<Profile />} />
               <Route path="/admin" element={<Admin />} />
               <Route path="*" element={<Navigate to="/" />} />
             </Routes>

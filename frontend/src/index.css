@@ -15,6 +15,8 @@
   --card-border-rgb: 228 223 206;
   --body-dot: rgba(255, 255, 255, 0.035);
   --shadow-cardstack: 0 1px 0 #E9E4D4, 0 8px 0 -3px #F6F2E6, 0 9px 0 -2px #DCD6C2, 0 18px 30px -12px rgba(0,0,0,0.45);
+  --comic-panel: none;
+  --comic-text-shadow: none;
 }
 
 [data-theme='high-contrast'] {
@@ -108,6 +110,145 @@ body {
 
 .marker-underline {
   background-image: linear-gradient(transparent 62%, rgb(var(--color-marker) / 1) 62%, rgb(var(--color-marker) / 1) 92%, transparent 92%);
+}
+
+.marker-block {
+  display: inline-block;
+  margin-left: 0.08em;
+  padding: 0 0.14em 0.03em;
+  border: 3px solid rgb(var(--color-ink) / 1);
+  border-radius: 0;
+  color: rgb(var(--color-ink) / 1);
+  background: rgb(var(--color-marker) / 1);
+  line-height: 1.02;
+  box-shadow: 3px 3px 0 rgb(var(--color-redline) / 1);
+  transform: rotate(2deg);
+}
+
+.brand-logo {
+  display: inline-block;
+  color: rgb(var(--color-card) / 1);
+  text-transform: uppercase;
+  letter-spacing: 0;
+  transform: rotate(-3deg) skew(-4deg);
+  -webkit-text-stroke: 1px rgb(var(--color-ink) / 1);
+  filter: drop-shadow(2px 2px 0 rgb(var(--color-redline) / 1));
+}
+
+.comic-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 32px;
+  padding: 3px 9px 3px 3px;
+  border: 1px solid rgb(var(--color-mist) / 0.3);
+  border-radius: 999px;
+  background: rgb(var(--color-board) / 1);
+  color: rgb(var(--color-card) / 1);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.comic-switch-knob {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: rgb(var(--color-mist) / 0.55);
+  box-shadow: inset 0 -2px 0 rgb(0 0 0 / 0.2);
+}
+
+.comic-switch.is-on {
+  border-color: rgb(var(--color-marker) / 1);
+  background: rgb(var(--color-marker) / 1);
+  color: rgb(var(--color-ink) / 1);
+}
+
+.comic-switch.is-on .comic-switch-knob {
+  background: rgb(var(--color-redline) / 1);
+}
+
+[data-layout='comic'] {
+  --color-ink: 22 26 36;
+  --color-board: 36 64 166;
+  --color-card: 255 248 205;
+  --color-rule: 16 24 40;
+  --color-marker: 255 221 45;
+  --color-redline: 235 49 55;
+  --color-mist: 255 255 255;
+  --card-text-rgb: 16 24 40;
+  --card-muted-rgb: 47 58 90;
+  --card-border-rgb: 16 24 40;
+  --body-dot: rgba(0, 0, 0, 0.18);
+  --shadow-cardstack: 6px 6px 0 #101828, 12px 12px 0 #ef3137, 18px 18px 0 rgba(255, 221, 45, 0.95);
+  --comic-text-shadow: 2px 2px 0 #101828, 4px 4px 0 rgb(var(--color-redline) / 1);
+}
+
+[data-layout='comic'] body {
+  background-color: rgb(var(--color-ink) / 1);
+  background-image:
+    radial-gradient(circle, rgba(255,255,255,0.18) 1px, transparent 1.8px),
+    linear-gradient(135deg, rgba(255,221,45,0.16), transparent 28%, rgba(235,49,55,0.14) 72%, transparent);
+  background-size: 12px 12px, 100% 100%;
+}
+
+[data-layout='comic'] header {
+  border-bottom: 4px solid #101828;
+  background: rgb(var(--color-card) / 1);
+  color: rgb(var(--color-ink) / 1);
+  box-shadow: 0 6px 0 rgb(var(--color-redline) / 1);
+}
+
+[data-layout='comic'] .brand-logo {
+  -webkit-text-stroke: 1px #101828;
+}
+
+[data-layout='comic'] .marker-block {
+  border: 3px solid #101828;
+  box-shadow: 4px 4px 0 rgb(var(--color-redline) / 1);
+}
+
+[data-layout='comic'] .index-card {
+  border: 4px solid #101828;
+  border-radius: 2px;
+  background-image:
+    radial-gradient(circle, rgba(16,24,40,0.08) 1px, transparent 1.8px),
+    linear-gradient(180deg, rgba(255,255,255,0.35), transparent 82px);
+  background-size: 10px 10px, 100% 100%;
+}
+
+[data-layout='comic'] button,
+[data-layout='comic'] select,
+[data-layout='comic'] input,
+[data-layout='comic'] textarea {
+  border-radius: 2px !important;
+  font-weight: 800;
+}
+
+[data-layout='comic'] button:not(:disabled),
+[data-layout='comic'] a.index-card {
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+[data-layout='comic'] button:not(:disabled):hover,
+[data-layout='comic'] a.index-card:hover {
+  transform: translate(-2px, -2px) rotate(-0.4deg);
+}
+
+[data-layout='comic'] .bg-board,
+[data-layout='comic'] select,
+[data-layout='comic'] input,
+[data-layout='comic'] textarea {
+  border: 3px solid #101828;
+  box-shadow: 3px 3px 0 #101828;
+}
+
+[data-layout='comic'] .text-mist {
+  color: rgb(var(--color-mist) / 0.92);
+}
+
+[data-layout='comic'] header .text-mist,
+[data-layout='comic'] header .hover\:text-card:hover {
+  color: rgb(var(--color-ink) / 1);
 }
 
 @media (prefers-reduced-motion: reduce) {

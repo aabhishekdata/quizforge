@@ -25,6 +25,7 @@ def _queue() -> Queue:
 async def upload(
     file: UploadFile = File(...),
     high_quality: bool = Form(False),
+    subject_id: int | None = Form(None),
     user: models.User = Depends(current_user),
     db: Session = Depends(get_db),
 ):
@@ -35,6 +36,10 @@ async def upload(
     data = await file.read()
     if len(data) > settings.max_upload_mb * 1024 * 1024:
         raise HTTPException(400, f"File is over the {settings.max_upload_mb}MB limit")
+    if subject_id is not None:
+        subject = db.get(models.Subject, subject_id)
+        if not subject or subject.owner_id != user.id:
+            raise HTTPException(404, "Subject not found")
 
     upload_dir = Path(settings.upload_dir)
     upload_dir.mkdir(parents=True, exist_ok=True)
@@ -49,7 +54,7 @@ async def upload(
 
     _queue().enqueue(
         "app.services.tasks.generate_deck_from_document",
-        doc.id, high_quality, job_timeout=1800)
+        doc.id, high_quality, subject_id, job_timeout=1800)
     return doc
 
 

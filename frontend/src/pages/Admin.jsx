@@ -3,17 +3,30 @@ import { api } from '../lib/api'
 
 export default function Admin() {
   const [codes, setCodes] = useState([])
+  const [resetCodes, setResetCodes] = useState([])
   const [groups, setGroups] = useState([])
   const [groupName, setGroupName] = useState('')
+  const [resetUsername, setResetUsername] = useState('')
   const [memberDrafts, setMemberDrafts] = useState({})
   const [msg, setMsg] = useState('')
 
   const loadInvites = () => api.get('/api/admin/invites').then(setCodes)
+  const loadResets = () => api.get('/api/admin/password-resets').then(setResetCodes)
   const loadGroups = () => api.get('/api/admin/groups').then(setGroups)
-  const load = () => { loadInvites(); loadGroups() }
+  const load = () => { loadInvites(); loadResets(); loadGroups() }
   useEffect(load, [])
 
   const createInvite = async () => { await api.post('/api/admin/invites'); loadInvites() }
+  const createReset = async () => {
+    const username = resetUsername.trim()
+    if (!username) return
+    setMsg('')
+    try {
+      await api.post('/api/admin/password-resets', { username })
+      setResetUsername('')
+      loadResets()
+    } catch (e) { setMsg(e.message) }
+  }
   const createGroup = async () => {
     setMsg('')
     try {
@@ -51,6 +64,31 @@ export default function Admin() {
               <span className="font-num tracking-widest">{c.code}</span>
               <span className="text-sm text-mist">
                 {c.used_by ? `used by ${c.used_by}` : 'unused'}
+              </span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <h2 className="font-display font-extrabold text-2xl mb-2">Password resets</h2>
+        <p className="text-sm text-mist mb-4">Generate a one-time reset code for a user. Codes expire after 24 hours.</p>
+        <div className="flex gap-2 mb-5">
+          <input value={resetUsername} onChange={e => setResetUsername(e.target.value)}
+                 onKeyDown={e => e.key === 'Enter' && createReset()}
+                 placeholder="Username"
+                 className="flex-1 rounded-md bg-board px-3 py-2 text-sm placeholder:text-mist focus:outline-none focus:ring-2 focus:ring-marker" />
+          <button onClick={createReset}
+                  className="rounded-md bg-marker text-ink font-display font-bold px-4 py-2">
+            Generate reset
+          </button>
+        </div>
+        <div className="space-y-2">
+          {resetCodes.map(c => (
+            <div key={`${c.code}-${c.username}`} className="flex items-center justify-between rounded-md bg-board px-4 py-3 gap-4">
+              <span className="font-num tracking-widest">{c.code}</span>
+              <span className="text-sm text-mist">
+                {c.used_at ? `used by ${c.username}` : `for ${c.username}`}
               </span>
             </div>
           ))}

@@ -20,6 +20,7 @@ class ImportedDeck:
     title: str
     description: str
     cards: list[dict[str, Any]]
+    subject_name: str | None = None
 
 
 def deck_to_payload(deck: models.Deck, cards: list[models.Card]) -> dict[str, Any]:
@@ -28,6 +29,7 @@ def deck_to_payload(deck: models.Deck, cards: list[models.Card]) -> dict[str, An
         "deck": {
             "title": deck.title,
             "description": deck.description,
+            "subject": deck.subject.name if getattr(deck, "subject", None) else None,
             "smart_review": deck.smart_review,
         },
         "cards": [
@@ -102,9 +104,11 @@ def parse_json_deck(data: bytes, title: str | None = None) -> ImportedDeck:
 
     imported_title = _clean_text(title or deck_data.get("title") or "Imported deck", 200)
     description = _clean_text(deck_data.get("description") or "", 5000, required=False)
+    subject_name = _subject_name(payload, deck_data)
     return ImportedDeck(
         title=imported_title,
         description=description,
+        subject_name=subject_name,
         cards=_normalize_cards(cards_data),
     )
 
@@ -151,6 +155,14 @@ def parse_csv_deck(data: bytes, fallback_title: str) -> ImportedDeck:
         description="Imported from CSV",
         cards=_normalize_cards(cards),
     )
+
+
+def _subject_name(payload: dict[str, Any], deck_data: dict[str, Any]) -> str | None:
+    value = deck_data.get("subject") or deck_data.get("subject_name") or payload.get("subject")
+    if isinstance(value, dict):
+        value = value.get("name")
+    cleaned = _clean_text(value, 80, required=False)
+    return cleaned or None
 
 
 def _normalize_cards(raw_cards: list[Any]) -> list[dict[str, Any]]:

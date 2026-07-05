@@ -6,6 +6,9 @@ export default function Upload() {
   const nav = useNavigate()
   const inputRef = useRef()
   const [doc, setDoc] = useState(null)
+  const [subjects, setSubjects] = useState([])
+  const [subjectId, setSubjectId] = useState('')
+  const [newSubject, setNewSubject] = useState('')
   const [hq, setHq] = useState(false)
   const [error, setError] = useState('')
   const [dragging, setDragging] = useState(false)
@@ -15,9 +18,24 @@ export default function Upload() {
     const fd = new FormData()
     fd.append('file', file)
     fd.append('high_quality', hq)
-    try { setDoc(await api.upload('/api/documents', fd)) }
+    try {
+      let chosenSubjectId = subjectId
+      if (newSubject.trim()) {
+        const subject = await api.post('/api/subjects', { name: newSubject.trim() })
+        chosenSubjectId = String(subject.id)
+        setSubjectId(chosenSubjectId)
+        setNewSubject('')
+        setSubjects(await api.get('/api/subjects'))
+      }
+      if (chosenSubjectId) fd.append('subject_id', chosenSubjectId)
+      setDoc(await api.upload('/api/documents', fd))
+    }
     catch (e) { setError(e.message) }
   }
+
+  useEffect(() => {
+    api.get('/api/subjects').then(setSubjects).catch(() => setSubjects([]))
+  }, [])
 
   // poll status while generating
   useEffect(() => {
@@ -41,6 +59,16 @@ export default function Upload() {
 
       {!doc && (
         <>
+          <div className="mb-4 flex items-center gap-2 flex-wrap">
+            <select value={subjectId} onChange={e => setSubjectId(e.target.value)}
+                    className="rounded-md bg-board px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-marker">
+              <option value="">Uncategorized</option>
+              {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            <input value={newSubject} onChange={e => setNewSubject(e.target.value)}
+                   placeholder="New subject"
+                   className="rounded-md bg-board px-3 py-2 text-sm placeholder:text-mist focus:outline-none focus:ring-2 focus:ring-marker" />
+          </div>
           <div
             onDragOver={e => { e.preventDefault(); setDragging(true) }}
             onDragLeave={() => setDragging(false)}
