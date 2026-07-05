@@ -1,0 +1,12 @@
+.env
+.venv/
+.pip-cache/
+__pycache__/
+*.pyc
+*.db
+node_modules/
+.npm-cache/
+dist/
+uploads/
+tmp/
+output/

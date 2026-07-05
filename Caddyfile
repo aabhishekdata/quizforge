@@ -1,0 +1,15 @@
+# Replace quiz.example.com with your domain (DNS A record -> your Hetzner IP).
+# Caddy fetches and renews the HTTPS certificate automatically.
+quiz.example.com {
+	encode gzip
+
+	handle /api/* {
+		reverse_proxy api:8000
+	}
+
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}
