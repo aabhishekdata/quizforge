@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { Routes, Route, Link, NavLink, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { api } from './lib/api'
+import Home from './pages/Home.jsx'
 import Login from './pages/Login.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import Upload from './pages/Upload.jsx'
@@ -147,7 +148,11 @@ export default function App() {
         </>
       ) : (
         <Routes>
-          <Route path="*" element={<Login />} />
+          <Route path="/" element={<Home />} />
+          <Route path="/login" element={<Login initialMode="login" />} />
+          <Route path="/register" element={<Login initialMode="register" />} />
+          <Route path="/reset" element={<Login initialMode="reset" />} />
+          <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       )}
     </AuthCtx.Provider>

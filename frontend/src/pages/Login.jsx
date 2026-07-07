@@ -1,14 +1,19 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useAuth } from '../App.jsx'
 
-export default function Login() {
+export default function Login({ initialMode = 'login' }) {
   const { setUser } = useAuth()
-  const [mode, setMode] = useState('login')
+  const [mode, setMode] = useState(initialMode)
   const [form, setForm] = useState({ username: '', password: '', invite_code: '', reset_code: '', new_password: '' })
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    setMode(initialMode)
+    setError('')
+  }, [initialMode])
 
   const submit = async () => {
     setBusy(true); setError('')
@@ -74,20 +79,23 @@ export default function Login() {
                   className="w-full rounded-md bg-ink text-marker font-display font-bold py-2.5 hover:opacity-90 disabled:opacity-50">
             {busy ? '…' : mode === 'login' ? 'Sign in' : mode === 'register' ? 'Create account' : 'Reset password'}
           </button>
-          <Link to="/demo"
-                className="block w-full text-center rounded-md bg-board text-card font-display font-bold py-2.5 hover:ring-1 hover:ring-marker">
-            Try demo deck
-          </Link>
+          <div className="rounded-md border border-rule bg-board/10 p-3">
+            <p className="text-xs font-num uppercase text-ink/50">No account yet?</p>
+            <Link to="/demo"
+                  className="mt-2 block w-full text-center rounded-md bg-marker text-ink font-display font-bold py-2.5 hover:opacity-90">
+              Try the demo deck
+            </Link>
+          </div>
         </div>
         <div className="mt-4 flex gap-3 flex-wrap text-sm">
-          <button onClick={() => { setMode(mode === 'register' ? 'login' : 'register'); setError('') }}
+          <Link to={mode === 'register' ? '/login' : '/register'}
                   className="text-ink/60 underline underline-offset-2">
             {mode === 'register' ? 'Already registered? Sign in' : 'Have an invite code? Register'}
-          </button>
-          <button onClick={() => { setMode(mode === 'reset' ? 'login' : 'reset'); setError('') }}
+          </Link>
+          <Link to={mode === 'reset' ? '/login' : '/reset'}
                   className="text-ink/60 underline underline-offset-2">
             {mode === 'reset' ? 'Back to sign in' : 'Forgot password?'}
-          </button>
+          </Link>
         </div>
       </div>
     </div>

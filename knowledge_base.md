@@ -475,7 +475,7 @@ Limits and behavior:
 
 ### Authentication
 
-- Unauthenticated users see login/register only.
+- Unauthenticated users see the public home page, demo deck, login, register, and reset routes.
 - Registration requires an invite code.
 - Auth state is loaded from `/api/auth/me`.
 - Sessions use cookie credentials in `fetch`.
@@ -518,8 +518,10 @@ Authenticated routes:
 
 ### Public Demo Workflow
 
+- Logged-out `/` is a public front page with a large QuizForge logo, a short app introduction, and links to demo, sign in, and sign up.
 - `/demo` is public and bypasses the login gate.
-- Login page includes a **Try demo deck** link.
+- Login page includes a visible **Try the demo deck** callout.
+- `/login`, `/register`, and `/reset` route directly to the corresponding auth form mode.
 - Demo uses the fixed Mental Models deck served by `/api/demo`.
 - Demo deck overview reuses `Deck.jsx` with `demo` mode.
 - Demo flashcard, MCQ, type-answer, and match screens reuse `Study.jsx` with `demo` mode.
@@ -1506,6 +1508,9 @@ Expected:
 
 - `frontend/src/pages/Login.jsx`
   - Login/register UI with invite code support and public demo link.
+
+- `frontend/src/pages/Home.jsx`
+  - Public logged-out front page with large logo, short app introduction, demo CTA, sign-in link, and sign-up link.
 
 - `frontend/src/pages/Dashboard.jsx`
   - Deck list, due count, empty state, and JSON/CSV deck import button.
