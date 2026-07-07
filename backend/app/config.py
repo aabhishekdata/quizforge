@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     deepseek_thinking_enabled: bool = True
     deepseek_reasoning_effort: str = "max"  # high|max
     upload_dir: str = "/data/uploads"
+    upload_unlock_code: str = "Ilovequizforge"
     max_upload_mb: int = 25
     max_pages: int = 150
     session_cookie: str = "qf_session"

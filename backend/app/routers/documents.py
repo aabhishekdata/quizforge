@@ -28,10 +28,14 @@ async def upload(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     high_quality: bool = Form(False),
+    upload_code: str = Form(""),
     subject_id: int | None = Form(None),
     user: models.User = Depends(current_user),
     db: Session = Depends(get_db),
 ):
+    if upload_code != settings.upload_unlock_code:
+        raise HTTPException(403, "Upload is locked")
+
     ext = (file.filename or "").rsplit(".", 1)[-1].lower()
     if ext not in ALLOWED:
         raise HTTPException(400, f"Unsupported file type .{ext} - use PDF, DOCX, PPTX, EPUB, or MD")

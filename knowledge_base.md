@@ -334,6 +334,7 @@ Limits and behavior:
 - `POST /api/documents`
   - Multipart upload.
   - Form field: `high_quality`.
+  - Form field: `upload_code`; must match `settings.upload_unlock_code`.
   - Enqueues generation job through Redis/RQ.
   - If Redis enqueue fails, falls back to an in-process FastAPI background task so local/dev upload does not return a 500.
   - VPS production should still run Redis and the worker service; the fallback is resilience, not the normal production execution path.
@@ -492,15 +493,18 @@ Authenticated routes:
 
 ### Upload Workflow
 
-1. User drags or selects a file.
-2. User optionally chooses an existing subject or creates a new subject.
-3. User optionally enables high-quality generation.
-4. Frontend posts multipart form to `/api/documents`.
-5. Backend stores the upload and enqueues the document generation job through Redis/RQ.
-6. If Redis enqueue is unavailable in local/dev, backend schedules the same job as a FastAPI background task.
-7. Frontend polls `/api/documents/{id}` every 2 seconds.
-8. On `ready`, user is redirected to the dashboard.
-9. On `failed`, error is displayed and the user can try another file.
+1. User opens the Upload tab.
+2. Upload tab remains visible but starts in a locked state until the user enters `Ilovequizforge`.
+3. Unlock state is stored in browser local storage.
+4. User optionally chooses an existing subject or creates a new subject.
+5. User optionally enables high-quality generation.
+6. Frontend posts multipart form to `/api/documents` with `upload_code`.
+7. Backend rejects uploads with HTTP 403 if `upload_code` does not match `settings.upload_unlock_code`.
+8. Backend stores the upload and enqueues the document generation job through Redis/RQ.
+9. If Redis enqueue is unavailable in local/dev, backend schedules the same job as a FastAPI background task.
+10. Frontend polls `/api/documents/{id}` every 2 seconds.
+11. On `ready`, user is redirected to the dashboard.
+12. On `failed`, error is displayed and the user can try another file.
 
 ### Deck Workflow
 
@@ -1422,7 +1426,7 @@ Expected:
   - Starts an RQ `SimpleWorker` for the `generation` queue.
 
 - `backend/app/config.py`
-  - Pydantic settings with provider config, upload limits, cookie settings, card counts, and model defaults.
+  - Pydantic settings with provider config, upload unlock code, upload limits, cookie settings, card counts, and model defaults.
 
 - `backend/app/database.py`
   - SQLAlchemy engine and session management.
@@ -1443,7 +1447,7 @@ Expected:
   - Invite registration, login, logout, current user summary.
 
 - `backend/app/routers/documents.py`
-  - Upload validation, storage, RQ enqueue, Redis-failure fallback, document polling.
+  - Upload unlock-code validation, file validation, storage, RQ enqueue, Redis-failure fallback, document polling.
 
 - `backend/app/routers/decks.py`
   - Subject CRUD, deck and card CRUD, authorization, user sharing, group sharing, due-card counts, JSON/CSV import and export endpoints.
@@ -1516,7 +1520,7 @@ Expected:
   - Deck list, due count, empty state, and JSON/CSV deck import button.
 
 - `frontend/src/pages/Upload.jsx`
-  - Drag/drop upload, high-quality toggle, polling.
+  - Locked upload gate, drag/drop upload, high-quality toggle, polling.
 
 - `frontend/src/pages/Deck.jsx`
   - Deck detail, study mode selection, JSON/CSV export buttons, card list/editing, admin sharing.

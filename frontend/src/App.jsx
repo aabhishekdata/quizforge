@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { Routes, Route, Link, NavLink, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { api } from './lib/api'
+import { isUploadUnlocked, UPLOAD_UNLOCK_EVENT } from './lib/uploadGate'
 import Home from './pages/Home.jsx'
 import Login from './pages/Login.jsx'
 import Dashboard from './pages/Dashboard.jsx'
@@ -42,6 +43,16 @@ function XPBar({ user }) {
 function Nav({ theme, setTheme, comicMode, setComicMode }) {
   const { user, refresh, setUser } = useAuth()
   const nav = useNavigate()
+  const [uploadUnlocked, setUploadUnlocked] = useState(() => isUploadUnlocked())
+  useEffect(() => {
+    const update = () => setUploadUnlocked(isUploadUnlocked())
+    window.addEventListener(UPLOAD_UNLOCK_EVENT, update)
+    window.addEventListener('storage', update)
+    return () => {
+      window.removeEventListener(UPLOAD_UNLOCK_EVENT, update)
+      window.removeEventListener('storage', update)
+    }
+  }, [])
   const logout = async () => {
     await api.post('/api/auth/logout')
     setUser(null)
@@ -57,7 +68,7 @@ function Nav({ theme, setTheme, comicMode, setComicMode }) {
         </Link>
         <nav className="flex gap-1 flex-wrap">
           <NavLink to="/" end className={link}>Decks</NavLink>
-          <NavLink to="/upload" className={link}>Upload</NavLink>
+          <NavLink to="/upload" className={link}>{uploadUnlocked ? 'Upload' : 'Upload Locked'}</NavLink>
           <NavLink to="/leaderboard" className={link}>Leaderboard</NavLink>
           <NavLink to="/achievements" className={link}>Badges</NavLink>
           <NavLink to="/profile" className={link}>Profile</NavLink>
