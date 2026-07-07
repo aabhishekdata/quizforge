@@ -123,6 +123,7 @@ frontend/src/
   pages/             Login, dashboard, upload, deck, study, admin, leaderboard, badges
 deploy/
   backup.sh          pg_dump and uploads archive
+  update_vps.sh      interactive Nginx/VPS deploy helper
 docker-compose.yml   db, redis, api, worker, optional local Caddy service; api binds 127.0.0.1:8000 for Nginx
 Caddyfile            Alternative/local Caddy config; production uses Nginx
 ```
@@ -817,6 +818,10 @@ volumes:
 
 VPS notes:
 
+- Preferred deploy path is the interactive helper:
+  `bash deploy/update_vps.sh`
+- The helper offers full deploy, frontend-only deploy, backend-only deploy, and dry-run full deploy choices.
+- Non-interactive flags are available: `--full`, `--frontend-only`, `--backend-only`, `--dry-run`, `--skip-npm-ci`, and `--skip-smoke`.
 - Rebuild both `api` and `worker` after dependency changes such as MarkItDown:
   `docker compose up -d --build api worker`
 - Redis and `worker` should remain enabled on the VPS. Upload generation normally runs through Redis/RQ.
@@ -1398,6 +1403,14 @@ Expected:
 
 - `.env.example`
   - Documents required secret and provider environment variables.
+
+- `deploy/update_vps.sh`
+  - Interactive VPS deploy helper for the current Nginx production setup.
+  - Defaults to `DOMAIN=quizforge.aabhishek.in`, `WEB_ROOT=/var/www/quizforge.aabhishek.in/html`, `REMOTE=origin`, and `BRANCH=main`.
+  - Full mode pulls GitHub, rebuilds `api` and `worker`, builds frontend, publishes `frontend/dist` to Nginx root, reloads Nginx, and runs smoke tests.
+  - Frontend-only mode pulls GitHub, builds/publishes frontend, reloads Nginx, and runs smoke tests.
+  - Backend-only mode pulls GitHub and rebuilds `api` and `worker`.
+  - Dry-run prints commands without changing the server.
 
 - `docker-compose.yml`
   - Defines database, Redis, API, worker, and an optional Caddy service for local/alternate containerized serving.

@@ -93,7 +93,12 @@ cd frontend && npm install && npm run dev
    docker compose logs api | grep INVITE   # your first invite code
    ```
 5. **Backups**: `crontab -e` → `0 3 * * * /opt/quizforge/deploy/backup.sh`. For off-server copies, rsync `/opt/quizforge-backups` to a Hetzner Storage Box.
-6. **Updating**: `git pull && docker compose up -d --build`.
+6. **Updating**:
+   ```bash
+   cd /opt/quizforge
+   bash deploy/update_vps.sh
+   ```
+   The script shows a menu for full deploy, frontend-only deploy, backend-only deploy, or dry-run full deploy.
 
 Costs: ~€4/mo server + LLM usage, depending on the configured provider and model.
 
@@ -117,6 +122,7 @@ frontend/src/
 docker-compose.yml   db, redis, api, worker, optional local Caddy service; api binds 127.0.0.1:8000 for Nginx
 Caddyfile            optional local/alternate Caddy config; production uses Nginx
 deploy/backup.sh     nightly pg_dump + uploads archive
+deploy/update_vps.sh interactive Nginx/VPS deploy helper
 ```
 
 ## Roadmap ideas
