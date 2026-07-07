@@ -25,6 +25,8 @@ services:
       DATABASE_URL: postgresql+psycopg2://quizforge:${POSTGRES_PASSWORD:-quizforge}@db:5432/quizforge
       REDIS_URL: redis://redis:6379/0
       UPLOAD_DIR: /data/uploads
+    ports:
+      - "127.0.0.1:8000:8000"
     volumes:
       - uploads:/data/uploads
     depends_on:

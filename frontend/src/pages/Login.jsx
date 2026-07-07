@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useAuth } from '../App.jsx'
 
@@ -73,6 +74,10 @@ export default function Login() {
                   className="w-full rounded-md bg-ink text-marker font-display font-bold py-2.5 hover:opacity-90 disabled:opacity-50">
             {busy ? '…' : mode === 'login' ? 'Sign in' : mode === 'register' ? 'Create account' : 'Reset password'}
           </button>
+          <Link to="/demo"
+                className="block w-full text-center rounded-md bg-board text-card font-display font-bold py-2.5 hover:ring-1 hover:ring-marker">
+            Try demo deck
+          </Link>
         </div>
         <div className="mt-4 flex gap-3 flex-wrap text-sm">
           <button onClick={() => { setMode(mode === 'register' ? 'login' : 'register'); setError('') }}

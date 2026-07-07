@@ -5,7 +5,7 @@ from sqlalchemy import inspect, select, text
 from .config import settings
 from .database import Base, engine, SessionLocal
 from . import models  # noqa: F401 (register models)
-from .routers import auth, documents, decks, study, gamification
+from .routers import auth, documents, decks, study, gamification, demo
 from .services.xp import seed_achievements
 from .services import xp as xp_service
 
@@ -26,6 +26,7 @@ app.include_router(decks.router)
 app.include_router(study.router)
 app.include_router(gamification.router)
 app.include_router(gamification.admin_router)
+app.include_router(demo.router)
 
 
 @app.on_event("startup")

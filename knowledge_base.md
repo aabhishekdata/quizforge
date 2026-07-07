@@ -108,7 +108,7 @@ backend/app/
     study.py         Study sessions, reviews, completion
     gamification.py  Leaderboard, achievements, admin invites and groups
   services/
-    parsing.py       PDF, DOCX, PPTX, EPUB, Markdown extraction and chunking
+    parsing.py       MarkItDown document-to-Markdown conversion and chunking
     deck_io.py       JSON/CSV deck import and export normalization
     generation.py    LLM prompts, provider calls, JSON repair, card cleaning
     tasks.py         RQ document-to-deck job
@@ -123,8 +123,8 @@ frontend/src/
   pages/             Login, dashboard, upload, deck, study, admin, leaderboard, badges
 deploy/
   backup.sh          pg_dump and uploads archive
-docker-compose.yml   db, redis, api, worker, caddy
-Caddyfile            Alternative Caddy deployment config
+docker-compose.yml   db, redis, api, worker, optional local Caddy service; api binds 127.0.0.1:8000 for Nginx
+Caddyfile            Alternative/local Caddy config; production uses Nginx
 ```
 
 ## 4. Domain Model
@@ -299,11 +299,9 @@ Validation:
 
 Supported file types:
 
-- PDF: PyMuPDF selectable text extraction.
-- DOCX: python-docx paragraphs and headings.
-- PPTX: python-pptx slide text frames.
-- EPUB: ebooklib plus BeautifulSoup, spine order preferred.
-- Markdown: UTF-8 text read directly.
+- PDF, DOCX, PPTX, and EPUB are converted to Markdown with Microsoft MarkItDown.
+- Markdown is read directly as UTF-8 and follows the same sectioning/chunking path.
+- Generated Markdown headings become section labels for source references and chunk context.
 
 Limits and behavior:
 
@@ -312,7 +310,7 @@ Limits and behavior:
 - Chunk size defaults to 8000 characters.
 - Chunk overlap is 400 characters for oversized sections.
 - Minimum useful chunk size is 300 characters.
-- Scanned PDFs without selectable text fail with an OCR-not-enabled message.
+- Scanned PDFs still need an OCR-enabled conversion path before they can produce useful cards.
 
 ## 7. API Surface
 
@@ -336,7 +334,9 @@ Limits and behavior:
 - `POST /api/documents`
   - Multipart upload.
   - Form field: `high_quality`.
-  - Enqueues generation job.
+  - Enqueues generation job through Redis/RQ.
+  - If Redis enqueue fails, falls back to an in-process FastAPI background task so local/dev upload does not return a 500.
+  - VPS production should still run Redis and the worker service; the fallback is resilience, not the normal production execution path.
 
 - `GET /api/documents`
   - Lists current user's documents.
@@ -410,6 +410,22 @@ Limits and behavior:
 - `DELETE /api/decks/{deck_id}/cards/{card_id}`
   - Owner-only card deletion.
 
+### Public Demo
+
+- `GET /api/demo/decks/mental-models`
+  - Public, no-auth demo deck metadata.
+  - Used by `/demo`.
+
+- `GET /api/demo/decks/mental-models/cards`
+  - Public, no-auth demo cards.
+  - Returns the fixed Mental Models sample deck.
+
+- `GET /api/demo/study/mental-models/session`
+  - Public, no-auth study session for the demo deck.
+  - Query: `mode`, `limit`.
+  - Used by the same frontend study UI as authenticated decks.
+  - Does not write review logs, XP, streaks, or achievements.
+
 ### Study
 
 - `GET /api/study/{deck_id}/session`
@@ -480,9 +496,11 @@ Authenticated routes:
 2. User optionally chooses an existing subject or creates a new subject.
 3. User optionally enables high-quality generation.
 4. Frontend posts multipart form to `/api/documents`.
-5. Frontend polls `/api/documents/{id}` every 2 seconds.
-6. On `ready`, user is redirected to the dashboard.
-7. On `failed`, error is displayed and the user can try another file.
+5. Backend stores the upload and enqueues the document generation job through Redis/RQ.
+6. If Redis enqueue is unavailable in local/dev, backend schedules the same job as a FastAPI background task.
+7. Frontend polls `/api/documents/{id}` every 2 seconds.
+8. On `ready`, user is redirected to the dashboard.
+9. On `failed`, error is displayed and the user can try another file.
 
 ### Deck Workflow
 
@@ -497,6 +515,17 @@ Authenticated routes:
 - Owner can edit or delete cards.
 - Admin can share deck to a user or a group.
 - Cards display elaboration and real-world example when available.
+
+### Public Demo Workflow
+
+- `/demo` is public and bypasses the login gate.
+- Login page includes a **Try demo deck** link.
+- Demo uses the fixed Mental Models deck served by `/api/demo`.
+- Demo deck overview reuses `Deck.jsx` with `demo` mode.
+- Demo flashcard, MCQ, type-answer, and match screens reuse `Study.jsx` with `demo` mode.
+- Demo mode hides write actions such as export, subject moves, Smart Review toggles, card edits, and admin sharing.
+- Demo mode suppresses review logging, XP, streaks, achievements, and session completion writes.
+- The UI should visually match real deck/study screens, especially the flashcard reveal layout.
 
 ### Deck Import And Export Workflow
 
@@ -779,6 +808,16 @@ volumes:
   redisdata:
   uploads:
 ```
+
+VPS notes:
+
+- Rebuild both `api` and `worker` after dependency changes such as MarkItDown:
+  `docker compose up -d --build api worker`
+- Redis and `worker` should remain enabled on the VPS. Upload generation normally runs through Redis/RQ.
+- The API has an inline background-task fallback if Redis enqueue fails. Treat this as a local/dev safety net and outage resilience; do not rely on it as the production worker model.
+- Public demo routes are served by the API under `/api/demo/*` and the SPA under `/demo`, so the Nginx `/api/` proxy and `try_files ... /index.html` SPA fallback are sufficient.
+- The demo deck is static application data and does not require database rows, migrations, uploads storage, Redis, or login.
+- MarkItDown conversion runs inside the `api` or `worker` container that processes the generation job. The backend image must be rebuilt after `backend/requirements.txt` changes.
 
 If using an override instead of inline ports:
 
@@ -1355,10 +1394,12 @@ Expected:
   - Documents required secret and provider environment variables.
 
 - `docker-compose.yml`
-  - Defines database, Redis, API, worker, and Caddy services for containerized deployment.
+  - Defines database, Redis, API, worker, and an optional Caddy service for local/alternate containerized serving.
+  - VPS production uses Nginx instead of the Compose Caddy service.
+  - API publishes `127.0.0.1:8000:8000` so host Nginx can proxy to the container without exposing the API publicly.
 
 - `Caddyfile`
-  - Alternative Caddy-based HTTPS and reverse proxy config.
+  - Alternative/local Caddy-based HTTPS and reverse proxy config.
 
 - `enhanced prompts.md`
   - Design rationale for moving generation to a two-pass subject-skeleton architecture.
@@ -1373,7 +1414,7 @@ Expected:
   - Python 3.12 slim image with backend dependencies and Uvicorn command.
 
 - `backend/requirements.txt`
-  - FastAPI, SQLAlchemy, Redis/RQ, Anthropic, OpenAI, PyMuPDF, DOCX/PPTX/EPUB parsing libraries, RapidFuzz.
+  - FastAPI, SQLAlchemy, Redis/RQ, Anthropic, OpenAI, MarkItDown, PyMuPDF, DOCX/PPTX/EPUB parsing libraries, RapidFuzz.
 
 - `backend/worker.py`
   - Starts an RQ `SimpleWorker` for the `generation` queue.
@@ -1400,10 +1441,13 @@ Expected:
   - Invite registration, login, logout, current user summary.
 
 - `backend/app/routers/documents.py`
-  - Upload validation, storage, RQ enqueue, document polling.
+  - Upload validation, storage, RQ enqueue, Redis-failure fallback, document polling.
 
 - `backend/app/routers/decks.py`
   - Subject CRUD, deck and card CRUD, authorization, user sharing, group sharing, due-card counts, JSON/CSV import and export endpoints.
+
+- `backend/app/routers/demo.py`
+  - Public no-login Mental Models demo deck and demo study-session endpoints.
 
 - `backend/app/routers/study.py`
   - Session selection, review submission, XP, streaks, achievements, Smart Review scheduling.
@@ -1412,7 +1456,10 @@ Expected:
   - Leaderboard, achievements, admin invite codes, admin group management.
 
 - `backend/app/services/parsing.py`
-  - File-type-specific text extraction and chunking.
+  - Converts uploaded documents to Markdown with MarkItDown, splits Markdown into sections, and chunks it for generation.
+
+- `backend/app/services/demo_deck.py`
+  - Fixed Mental Models demo deck payload and cards.
 
 - `backend/app/services/deck_io.py`
   - Canonical deck import/export service.
@@ -1439,7 +1486,8 @@ Expected:
   - React 18, React Router, Vite 5, Tailwind.
 
 - `frontend/Dockerfile`
-  - Builds React app in Node image and serves static output with Caddy.
+  - Builds React app in Node image and serves static output with Caddy for the optional local/alternate Compose service.
+  - VPS production builds `frontend/dist` and publishes it to the Nginx web root.
 
 - `frontend/vite.config.js`
   - React plugin and dev proxy from `/api` to `localhost:8000`.
@@ -1451,13 +1499,13 @@ Expected:
   - Cookie-aware fetch wrapper with JSON, form upload, and blob download helpers.
 
 - `frontend/src/App.jsx`
-  - Auth context, protected routing, nav, theme selector, XP bar.
+  - Auth context, protected routing, public demo routing, nav, theme selector, XP bar.
 
 - `frontend/src/index.css`
   - Theme variables and card styling.
 
 - `frontend/src/pages/Login.jsx`
-  - Login/register UI with invite code support.
+  - Login/register UI with invite code support and public demo link.
 
 - `frontend/src/pages/Dashboard.jsx`
   - Deck list, due count, empty state, and JSON/CSV deck import button.
@@ -1467,9 +1515,11 @@ Expected:
 
 - `frontend/src/pages/Deck.jsx`
   - Deck detail, study mode selection, JSON/CSV export buttons, card list/editing, admin sharing.
+  - In demo mode, reuses the same deck UI against `/api/demo` endpoints and hides write actions.
 
 - `frontend/src/pages/Study.jsx`
   - Flashcard, MCQ, typed-answer, and match study modes.
+  - In demo mode, reuses the same study UI against `/api/demo` endpoints and suppresses XP/review writes.
 
 - `frontend/src/pages/Admin.jsx`
   - Invite and group management.
@@ -1551,7 +1601,7 @@ Expected:
 - Persist the subject skeleton if future features need concept coverage reports.
 - Add embedding-based near-duplicate card detection.
 - Add deterministic enrichment for external references if links/search are reintroduced.
-- Reconcile README's Caddy deployment path with the current Nginx production path.
+- Keep README and deployment docs aligned with the current Nginx production path.
 - Consider adding a visible import status/progress message and richer import preview before creating a deck.
 - Consider adding Anki-compatible import/export formats if users need broader deck portability.
 - Consider replacing simplified FSRS with the `fsrs` package.

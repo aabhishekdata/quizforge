@@ -3,7 +3,7 @@ import { Link, useParams, useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useAuth } from '../App.jsx'
 
-export default function Deck() {
+export default function Deck({ demo = false }) {
   const { id } = useParams()
   const nav = useNavigate()
   const { user } = useAuth()
@@ -19,19 +19,21 @@ export default function Deck() {
   const [msg, setMsg] = useState('')
 
   const load = () => {
-    api.get(`/api/decks/${id}`).then(setDeck).catch(() => nav('/'))
-    api.get(`/api/decks/${id}/cards`).then(setCards)
+    const deckId = demo ? 'mental-models' : id
+    const base = demo ? '/api/demo/decks' : '/api/decks'
+    api.get(`${base}/${deckId}`).then(setDeck).catch(() => nav(demo ? '/login' : '/'))
+    api.get(`${base}/${deckId}/cards`).then(setCards)
   }
-  useEffect(load, [id])
+  useEffect(load, [id, demo])
   useEffect(() => {
-    if (user?.is_admin) api.get('/api/admin/groups').then(setGroups).catch(() => setGroups([]))
-  }, [user?.is_admin])
+    if (!demo && user?.is_admin) api.get('/api/admin/groups').then(setGroups).catch(() => setGroups([]))
+  }, [user?.is_admin, demo])
   useEffect(() => {
-    api.get('/api/subjects').then(setSubjects).catch(() => setSubjects([]))
-  }, [])
+    if (!demo) api.get('/api/subjects').then(setSubjects).catch(() => setSubjects([]))
+  }, [demo])
 
   if (!deck) return <p className="text-mist font-num">loading…</p>
-  const mine = deck.owner_id === user.id
+  const mine = !demo && user && deck.owner_id === user.id
   const mcqCount = cards.filter(c => c.mcq_options).length
 
   const modes = [
@@ -97,7 +99,9 @@ export default function Deck() {
 
   return (
     <div>
-      <Link to="/" className="text-sm text-mist hover:text-card">← All decks</Link>
+      <Link to={demo ? "/login" : "/"} className="text-sm text-mist hover:text-card">
+        {demo ? '← Sign in' : '← All decks'}
+      </Link>
       <div className="flex items-start justify-between gap-4 mt-2 mb-6 flex-wrap">
         <div>
           <h1 className="font-display font-extrabold text-3xl">{deck.title}</h1>
@@ -123,14 +127,18 @@ export default function Deck() {
               </button>
             </div>
           )}
-          <button onClick={() => exportDeck('json')}
-                  className="text-sm rounded-md bg-board px-3 py-1.5 hover:ring-1 hover:ring-marker">
-            Export JSON
-          </button>
-          <button onClick={() => exportDeck('csv')}
-                  className="text-sm rounded-md bg-board px-3 py-1.5 hover:ring-1 hover:ring-marker">
-            Export CSV
-          </button>
+          {!demo && (
+            <>
+              <button onClick={() => exportDeck('json')}
+                      className="text-sm rounded-md bg-board px-3 py-1.5 hover:ring-1 hover:ring-marker">
+                Export JSON
+              </button>
+              <button onClick={() => exportDeck('csv')}
+                      className="text-sm rounded-md bg-board px-3 py-1.5 hover:ring-1 hover:ring-marker">
+                Export CSV
+              </button>
+            </>
+          )}
           {mine && (
             <label className="flex items-center gap-2 text-sm text-mist cursor-pointer">
               <input type="checkbox" checked={deck.smart_review} onChange={toggleSmart} className="accent-marker" />
@@ -143,7 +151,7 @@ export default function Deck() {
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
         {modes.map(m => (
           <button key={m.key} disabled={!m.enabled}
-                  onClick={() => nav(`/decks/${id}/study/${m.key}`)}
+                  onClick={() => nav(demo ? `/demo/study/${m.key}` : `/decks/${id}/study/${m.key}`)}
                   className="text-left rounded-lg bg-board p-4 hover:ring-2 hover:ring-marker disabled:opacity-40 disabled:hover:ring-0">
             <p className="font-display font-bold">{m.name}</p>
             <p className="text-xs text-mist mt-0.5">{m.desc}</p>
@@ -158,7 +166,7 @@ export default function Deck() {
         </button>
       )}
 
-      {user.is_admin && (
+      {!demo && user?.is_admin && (
         <div className="mb-8 rounded-lg border border-board/70 p-4">
           <p className="font-display font-bold mb-3">Admin sharing</p>
           <div className="flex items-center gap-2 flex-wrap">

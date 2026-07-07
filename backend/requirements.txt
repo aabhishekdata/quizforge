@@ -12,6 +12,7 @@ redis==5.*
 rq==2.*
 anthropic>=0.40
 openai>=1.0
+markitdown[all]>=0.1,<0.2
 PyMuPDF==1.25.*
 python-docx==1.1.*
 python-pptx==1.0.*

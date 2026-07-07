@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
-import { Routes, Route, Link, NavLink, Navigate, useNavigate } from 'react-router-dom'
+import { Routes, Route, Link, NavLink, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { api } from './lib/api'
 import Login from './pages/Login.jsx'
 import Dashboard from './pages/Dashboard.jsx'
@@ -92,13 +92,18 @@ function Nav({ theme, setTheme, comicMode, setComicMode }) {
 }
 
 export default function App() {
+  const location = useLocation()
+  const isDemoRoute = location.pathname.startsWith('/demo')
   const [user, setUser] = useState(undefined) // undefined = loading
   const [theme, setTheme] = useState(() => localStorage.getItem('qf_theme') || 'classic')
   const [comicMode, setComicMode] = useState(() => localStorage.getItem('qf_comic_mode') === '1')
   const refresh = useCallback(async () => {
     try { setUser(await api.get('/api/auth/me')) } catch { setUser(null) }
   }, [])
-  useEffect(() => { refresh() }, [refresh])
+  useEffect(() => {
+    if (isDemoRoute) return
+    refresh()
+  }, [refresh, isDemoRoute])
   useEffect(() => {
     const active = themes.some(t => t.key === theme) ? theme : 'classic'
     document.documentElement.dataset.theme = active
@@ -109,13 +114,21 @@ export default function App() {
     localStorage.setItem('qf_comic_mode', comicMode ? '1' : '0')
   }, [comicMode])
 
-  if (user === undefined) {
+  if (user === undefined && !isDemoRoute) {
     return <div className="min-h-screen grid place-items-center text-mist font-num">loading…</div>
   }
 
   return (
     <AuthCtx.Provider value={{ user, setUser, refresh }}>
-      {user ? (
+      {isDemoRoute ? (
+        <main className="max-w-5xl mx-auto px-4 py-8">
+          <Routes>
+            <Route path="/demo" element={<Deck demo />} />
+            <Route path="/demo/study/:mode" element={<Study demo />} />
+            <Route path="*" element={<Navigate to="/demo" />} />
+          </Routes>
+        </main>
+      ) : user ? (
         <>
           <Nav theme={theme} setTheme={setTheme} comicMode={comicMode} setComicMode={setComicMode} />
           <main className="max-w-5xl mx-auto px-4 py-8">

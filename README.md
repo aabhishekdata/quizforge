@@ -4,11 +4,11 @@ A private, invite-only study app for you and your friends. Upload a PDF, DOCX, P
 
 ## Stack
 
-FastAPI + PostgreSQL + Redis/RQ (async card generation) on the backend, React + Vite + Tailwind on the frontend, Caddy for HTTPS, all wired with Docker Compose. Card generation supports Anthropic, OpenAI, and DeepSeek models. Anthropic is the default provider.
+FastAPI + PostgreSQL + Redis/RQ (async card generation) on the backend, React + Vite + Tailwind on the frontend, and Nginx for production HTTPS/static serving/reverse proxy. Card generation supports Anthropic, OpenAI, and DeepSeek models. Anthropic is the default provider.
 
 ## Features
 
-- **Upload → deck**: parses PDF (PyMuPDF), DOCX, PPTX, EPUB, MD; chunks text; generates flashcards + MCQs with difficulty tags and source references; live progress while generating
+- **Upload → deck**: converts PDF, DOCX, PPTX, EPUB, and MD to Markdown with Microsoft MarkItDown; chunks the Markdown; generates flashcards + MCQs with difficulty tags and source references; live progress while generating
 - **Four study modes**: flashcards (flip + self-grade), multiple choice, type-the-answer (fuzzy match), match (pair grid)
 - **Gamification**: XP ledger, level curve with titles, combo multiplier, daily-first bonus, day streaks with 2 auto-consumed freeze tokens, 15 achievements, weekly leaderboard (resets Monday)
 - **Smart Review**: opt-in per deck; simplified FSRS scheduler with a "due today" count (swap in the `fsrs` PyPI package later — the schema already fits)
@@ -54,7 +54,7 @@ On first boot the API prints a **FIRST-RUN INVITE CODE** to its logs:
 docker compose logs api | grep INVITE
 ```
 
-For local use, edit the `Caddyfile` and change `quiz.example.com` to `:80`, then open http://localhost. Register with the invite code — your account becomes admin.
+For local full-stack Docker use, the bundled Compose file includes a Caddy service for convenience. Production uses Nginx instead.
 
 ### Dev mode (hot reload)
 
@@ -71,22 +71,25 @@ cd backend && python worker.py
 cd frontend && npm install && npm run dev
 ```
 
-(For dev mode, expose db/redis ports by adding `ports: ["5432:5432"]` / `["6379:6379"]` to those services, and set `COOKIE_SECURE=0` in the API's environment when testing over plain http. Same applies if you run production without a domain — but get the domain, HTTPS is one line of Caddyfile.)
+(For dev mode, expose db/redis ports by adding `ports: ["5432:5432"]` / `["6379:6379"]` to those services, and set `COOKIE_SECURE=0` in the API's environment when testing over plain http.)
 
 ## Deploy on Hetzner
 
 1. **Create a server**: Hetzner Cloud → CX22 (2 vCPU / 4GB) → Ubuntu 24.04 → add your SSH key. Enable the Hetzner Cloud Firewall: allow 22, 80, 443 only.
 2. **Point DNS**: add an A record for `quiz.yourdomain.com` → the server IP. (HTTPS certificates need this.)
-3. **Install Docker** on the server:
+3. **Install Docker + Nginx + Certbot** on the server:
    ```bash
    curl -fsSL https://get.docker.com | sh
+   sudo apt install -y nginx certbot python3-certbot-nginx
    ```
 4. **Deploy**:
    ```bash
    git clone <your-repo> /opt/quizforge && cd /opt/quizforge
    cp .env.example .env && nano .env      # real secrets here
-   nano Caddyfile                          # set your domain
-   docker compose up -d --build
+   docker compose up -d --build db redis api worker
+   npm --prefix frontend ci && npm --prefix frontend run build
+   sudo rsync -a --delete frontend/dist/ /var/www/quiz.yourdomain.com/html/
+   # Configure Nginx to serve that root and proxy /api/ to http://127.0.0.1:8000/api/
    docker compose logs api | grep INVITE   # your first invite code
    ```
 5. **Backups**: `crontab -e` → `0 3 * * * /opt/quizforge/deploy/backup.sh`. For off-server copies, rsync `/opt/quizforge-backups` to a Hetzner Storage Box.
@@ -103,7 +106,7 @@ backend/app/
   security.py        signed-cookie sessions, bcrypt, admin guard
   routers/           auth, documents (upload+polling), decks (CRUD+share), study, gamification+admin
   services/
-    parsing.py       pdf/docx/pptx/epub/md extraction + chunking
+    parsing.py       MarkItDown document-to-Markdown conversion + chunking
     generation.py    LLM provider calls, JSON schema, validation
     tasks.py         RQ job: document -> deck
     xp.py            XP rules, levels, streaks, achievements
@@ -111,8 +114,8 @@ backend/app/
 frontend/src/
   App.jsx            auth context, router, nav with XP bar + streak
   pages/             Login, Dashboard, Upload, Deck, Study (4 modes), Leaderboard, Achievements, Admin
-docker-compose.yml   db, redis, api, worker, caddy(+built frontend)
-Caddyfile            HTTPS + /api reverse proxy + SPA fallback
+docker-compose.yml   db, redis, api, worker, optional local Caddy service; api binds 127.0.0.1:8000 for Nginx
+Caddyfile            optional local/alternate Caddy config; production uses Nginx
 deploy/backup.sh     nightly pg_dump + uploads archive
 ```
 

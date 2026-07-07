@@ -31,7 +31,7 @@ function XPFloat({ bursts }) {
   )
 }
 
-export default function Study() {
+export default function Study({ demo = false }) {
   const { id, mode } = useParams()
   const [params] = useSearchParams()
   const smart = params.get('smart') === '1'
@@ -55,7 +55,11 @@ export default function Study() {
   const [matchState, setMatchState] = useState(null) // match
 
   useEffect(() => {
-    api.get(`/api/study/${id}/session?mode=${mode === 'match' ? 'flashcard' : mode}&limit=${mode === 'match' ? 6 : 20}&smart=${smart}`)
+    const deckId = demo ? 'mental-models' : id
+    const path = demo
+      ? `/api/demo/study/${deckId}/session?mode=${mode === 'match' ? 'flashcard' : mode}&limit=${mode === 'match' ? 6 : 20}`
+      : `/api/study/${deckId}/session?mode=${mode === 'match' ? 'flashcard' : mode}&limit=${mode === 'match' ? 6 : 20}&smart=${smart}`
+    api.get(path)
       .then(cs => {
         setCards(cs)
         startRef.current = Date.now()
@@ -68,7 +72,7 @@ export default function Study() {
         }
       })
       .catch(e => setError(e.message))
-  }, [id, mode, smart])
+  }, [id, mode, smart, demo])
 
   const card = cards?.[idx]
 
@@ -79,18 +83,20 @@ export default function Study() {
   }
 
   const sendReview = async (rating, correct, msTaken = null, cardId = null) => {
-    try {
-      const res = await api.post('/api/study/review', {
-        card_id: cardId ?? card?.id,
-        mode, rating, correct, ms_taken: msTaken, combo,
-      })
-      pushBurst(res.xp_awarded)
-      if (res.new_achievements.length) {
-        setAchToast(res.new_achievements[0])
-        setTimeout(() => setAchToast(null), 3000)
-      }
-      refresh()
-    } catch {}
+    if (!demo) {
+      try {
+        const res = await api.post('/api/study/review', {
+          card_id: cardId ?? card?.id,
+          mode, rating, correct, ms_taken: msTaken, combo,
+        })
+        pushBurst(res.xp_awarded)
+        if (res.new_achievements.length) {
+          setAchToast(res.new_achievements[0])
+          setTimeout(() => setAchToast(null), 3000)
+        }
+        refresh()
+      } catch {}
+    }
     setCombo(correct ? combo + 1 : 0)
     if (correct) setCorrectCount(c => c + 1)
   }
@@ -102,6 +108,10 @@ export default function Study() {
   }
 
   const finish = async () => {
+    if (demo) {
+      setDone({ xp_awarded: 0, new_achievements: [] })
+      return
+    }
     try {
       const res = await api.post('/api/study/session/complete', {
         deck_id: Number(id), cards_seen: cards.length, correct: correctCount,
@@ -114,7 +124,7 @@ export default function Study() {
   if (error) return (
     <div className="text-center py-16">
       <p className="text-mist">{error}</p>
-      <Link to={`/decks/${id}`} className="underline text-sm mt-2 inline-block">Back to deck</Link>
+      <Link to={demo ? "/demo" : `/decks/${id}`} className="underline text-sm mt-2 inline-block">Back to deck</Link>
     </div>
   )
   if (!cards) return <p className="text-mist font-num">shuffling cards…</p>
@@ -130,7 +140,7 @@ export default function Study() {
         <p key={a.key} className="mt-2 text-sm">{a.icon} Unlocked: <b>{a.name}</b> (+{a.xp} XP)</p>
       ))}
       <div className="mt-6 flex justify-center gap-3">
-        <Link to={`/decks/${id}`} className="rounded-md bg-ink text-marker font-display font-bold px-4 py-2">
+        <Link to={demo ? "/demo" : `/decks/${id}`} className="rounded-md bg-ink text-marker font-display font-bold px-4 py-2">
           Back to deck
         </Link>
       </div>
@@ -160,7 +170,7 @@ export default function Study() {
     return (
       <div>
         <XPFloat bursts={bursts} />
-        <Header combo={combo} progress={`${matched.size / 2} / ${tiles.length / 2} pairs`} deckId={id} />
+        <Header combo={combo} progress={`${matched.size / 2} / ${tiles.length / 2} pairs`} deckId={id} demo={demo} />
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-6">
           {tiles.map(t => {
             const isSel = selected?.key === t.key
@@ -192,7 +202,7 @@ export default function Study() {
           </div>
         </div>
       )}
-      <Header combo={combo} progress={progress} deckId={id} />
+      <Header combo={combo} progress={progress} deckId={id} demo={demo} />
 
       {mode === 'flashcard' && (
         <div className="mt-6">
@@ -346,10 +356,10 @@ export default function Study() {
   )
 }
 
-function Header({ combo, progress, deckId }) {
+function Header({ combo, progress, deckId, demo = false }) {
   return (
     <div className="flex items-center justify-between">
-      <Link to={`/decks/${deckId}`} className="text-sm text-mist hover:text-card">✕ End session</Link>
+      <Link to={demo ? "/demo" : `/decks/${deckId}`} className="text-sm text-mist hover:text-card">✕ End session</Link>
       <span className="font-num text-sm text-mist">{progress}</span>
       <span className={`font-num text-sm ${combo >= 5 ? 'text-marker' : 'text-mist'}`}>
         {combo >= 5 ? `⚡ ${combo}x combo!` : combo > 0 ? `${combo} streak` : '\u00A0'}

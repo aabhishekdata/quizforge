@@ -1,8 +1,9 @@
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile, File, Form
 from redis import Redis
+from redis.exceptions import RedisError
 from rq import Queue
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -11,6 +12,7 @@ from .. import models, schemas
 from ..config import settings
 from ..database import get_db
 from ..security import current_user
+from ..services.tasks import generate_deck_from_document
 
 router = APIRouter(prefix="/api/documents", tags=["documents"])
 
@@ -23,6 +25,7 @@ def _queue() -> Queue:
 
 @router.post("", response_model=schemas.DocumentOut)
 async def upload(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     high_quality: bool = Form(False),
     subject_id: int | None = Form(None),
@@ -52,9 +55,12 @@ async def upload(
     db.commit()
     db.refresh(doc)
 
-    _queue().enqueue(
-        "app.services.tasks.generate_deck_from_document",
-        doc.id, high_quality, subject_id, job_timeout=1800)
+    try:
+        _queue().enqueue(
+            "app.services.tasks.generate_deck_from_document",
+            doc.id, high_quality, subject_id, job_timeout=1800)
+    except RedisError:
+        background_tasks.add_task(generate_deck_from_document, doc.id, high_quality, subject_id)
     return doc
 
 
