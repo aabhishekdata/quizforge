@@ -4,7 +4,8 @@
 # This is broader than the QuizForge app backup. It captures the practical
 # recovery state for a small Ubuntu VPS:
 # - system configuration under /etc
-# - /home, /root, /opt, and /var/www
+# - /home, /root, /opt, /srv, /var/www, and /usr/local
+# - common non-Docker database data under /var/lib/mysql, /var/lib/postgresql, /var/lib/redis
 # - Docker volumes, Docker metadata, and optional container image archives
 # - package lists, crontabs, systemd unit files, firewall state, and service metadata
 # - QuizForge PostgreSQL logical dump when the compose project is present
@@ -129,12 +130,27 @@ collect_metadata() {
 
 backup_filesystems() {
   mkdir -p "$WORK_DIR/files"
+  echo "Backing up system and website directories..."
+  echo "/etc" >> "$WORK_DIR/files/included-paths.txt"
   tar_if_exists "$WORK_DIR/files/etc.tar.gz" /etc
+  echo "/home" >> "$WORK_DIR/files/included-paths.txt"
   tar_if_exists "$WORK_DIR/files/home.tar.gz" /home
+  echo "/root" >> "$WORK_DIR/files/included-paths.txt"
   tar_if_exists "$WORK_DIR/files/root.tar.gz" /root
+  echo "/opt" >> "$WORK_DIR/files/included-paths.txt"
   tar_if_exists "$WORK_DIR/files/opt.tar.gz" /opt
+  echo "/srv" >> "$WORK_DIR/files/included-paths.txt"
+  tar_if_exists "$WORK_DIR/files/srv.tar.gz" /srv
+  echo "/var/www" >> "$WORK_DIR/files/included-paths.txt"
   tar_if_exists "$WORK_DIR/files/var-www.tar.gz" /var/www
+  echo "/usr/local" >> "$WORK_DIR/files/included-paths.txt"
   tar_if_exists "$WORK_DIR/files/usr-local.tar.gz" /usr/local
+  echo "/var/lib/mysql" >> "$WORK_DIR/files/included-paths.txt"
+  tar_if_exists "$WORK_DIR/files/var-lib-mysql.tar.gz" /var/lib/mysql
+  echo "/var/lib/postgresql" >> "$WORK_DIR/files/included-paths.txt"
+  tar_if_exists "$WORK_DIR/files/var-lib-postgresql.tar.gz" /var/lib/postgresql
+  echo "/var/lib/redis" >> "$WORK_DIR/files/included-paths.txt"
+  tar_if_exists "$WORK_DIR/files/var-lib-redis.tar.gz" /var/lib/redis
 }
 
 backup_docker() {
@@ -236,6 +252,9 @@ main() {
   echo "VPS backup complete:"
   echo "  $ARCHIVE"
   echo "  $ARCHIVE.sha256"
+  echo
+  echo "The archive includes website files from /var/www, app files from /opt and /srv,"
+  echo "Nginx/Certbot/server config from /etc, and every Docker named volume."
   echo
   echo "Copy both files off the VPS."
 }

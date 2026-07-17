@@ -19,7 +19,7 @@ Usage: sudo bash deploy/vps_restore.sh [options] /path/to/vps-full-YYYYmmdd-HHMM
 
 Options:
   --install-prereqs  Install Docker, Nginx, Certbot, git, curl, rsync, Node.js 22
-  --restore-root     Restore /etc, /home, /root, /opt, /var/www, /usr/local archives
+  --restore-root     Restore system, website, app, and common database directory archives
   --restore-docker   Restore Docker volumes from the backup
   --yes              Skip the RESTORE confirmation prompt
   -h, --help         Show this help
@@ -108,7 +108,7 @@ restore_root_dirs() {
     return
   fi
   local item
-  for item in etc home root opt var-www usr-local; do
+  for item in etc home root opt srv var-www usr-local var-lib-mysql var-lib-postgresql var-lib-redis; do
     local archive="$RESTORE_DIR/files/$item.tar.gz"
     [[ -f "$archive" ]] || continue
     echo "Restoring $archive to /"

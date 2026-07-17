@@ -1400,8 +1400,10 @@ The VPS backup includes:
 - `/home`
 - `/root`
 - `/opt`
+- `/srv`
 - `/var/www`
 - `/usr/local`
+- common non-Docker database directories: `/var/lib/mysql`, `/var/lib/postgresql`, `/var/lib/redis`
 - all Docker named volumes
 - Docker/container/image/network metadata
 - package lists
