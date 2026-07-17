@@ -92,7 +92,7 @@ cd frontend && npm install && npm run dev
    # Configure Nginx to serve that root and proxy /api/ to http://127.0.0.1:8000/api/
    docker compose logs api | grep INVITE   # your first invite code
    ```
-5. **Backups**: `crontab -e` → `0 3 * * * /opt/quizforge/deploy/backup.sh`. For off-server copies, rsync `/opt/quizforge-backups` to a Hetzner Storage Box.
+5. **Backups**: for app-only recovery use `deploy/full_backup.sh`; for complete VPS recovery use `sudo bash deploy/vps_backup.sh`. Copy `/opt/vps-backups/vps-full-*.tar.gz*` off-server after each run. Hetzner snapshots are still the best whole-machine rollback.
 6. **Updating**:
    ```bash
    cd /opt/quizforge
@@ -122,7 +122,11 @@ frontend/src/
 docker-compose.yml   db, redis, api, worker, optional local Caddy service; api binds 127.0.0.1:8000 for Nginx
 Caddyfile            optional local/alternate Caddy config; production uses Nginx
 deploy/backup.sh     nightly pg_dump + uploads archive
+deploy/full_backup.sh app recovery backup bundle
+deploy/full_restore.sh guarded app restore from a full backup bundle
 deploy/update_vps.sh interactive Nginx/VPS deploy helper
+deploy/vps_backup.sh complete VPS recovery backup bundle
+deploy/vps_restore.sh guarded complete VPS restore helper
 ```
 
 ## Roadmap ideas

@@ -1344,25 +1344,87 @@ Fix:
 
 ### Backups
 
-Backup script behavior:
+Legacy backup script behavior:
 
 - Creates `/opt/quizforge-backups`.
 - Dumps PostgreSQL with `pg_dump`.
 - Archives uploads volume.
 - Deletes `.gz` backups older than 14 days.
 
-Current script assumes project directory `/opt/quizforge`. If production source remains nested at `/opt/quizforge/quizforge`, adjust `cd /opt/quizforge` to:
+For app-only disaster recovery:
 
 ```bash
 cd /opt/quizforge/quizforge
+sudo bash deploy/full_backup.sh
 ```
 
-Recommended backup items:
+It creates `/opt/quizforge-backups/quizforge-full-YYYYmmdd-HHMMSS.tar.gz` plus a `.sha256` checksum.
+
+The full backup includes:
 
 - PostgreSQL dump
 - Uploads volume
 - `.env`
 - Nginx site config
+- Certbot/Let's Encrypt config, when readable
+- repo working tree, excluding bulky cache/build folders
+- crontab and server metadata
+
+Fresh VPS restore pattern:
+
+```bash
+sudo mkdir -p /opt/quizforge-backups
+sudo cp quizforge-full-YYYYmmdd-HHMMSS.tar.gz /opt/quizforge-backups/
+sudo bash deploy/full_restore.sh --install-prereqs /opt/quizforge-backups/quizforge-full-YYYYmmdd-HHMMSS.tar.gz
+```
+
+The restore script prompts for `RESTORE` unless `--yes` is supplied. It can overwrite app files, PostgreSQL data, uploads, Nginx config, and Certbot config.
+
+For complete VPS recovery, use provider snapshots plus the VPS backup script:
+
+```bash
+cd /opt/quizforge/quizforge
+sudo bash deploy/vps_backup.sh
+```
+
+It creates:
+
+```text
+/opt/vps-backups/vps-full-YYYYmmdd-HHMMSS.tar.gz
+/opt/vps-backups/vps-full-YYYYmmdd-HHMMSS.tar.gz.sha256
+```
+
+The VPS backup includes:
+
+- `/etc`
+- `/home`
+- `/root`
+- `/opt`
+- `/var/www`
+- `/usr/local`
+- all Docker named volumes
+- Docker/container/image/network metadata
+- package lists
+- crontabs
+- systemd metadata
+- firewall metadata
+- QuizForge logical `pg_dump` when `/opt/quizforge/quizforge` exists
+
+Optional large Docker image archive:
+
+```bash
+sudo bash deploy/vps_backup.sh --include-docker-images
+```
+
+Fresh VPS restore pattern:
+
+```bash
+sudo mkdir -p /opt/vps-backups
+sudo cp vps-full-YYYYmmdd-HHMMSS.tar.gz /opt/vps-backups/
+sudo bash deploy/vps_restore.sh --install-prereqs --restore-root --restore-docker /opt/vps-backups/vps-full-YYYYmmdd-HHMMSS.tar.gz
+```
+
+Important: script-based VPS backup is portable recovery, not a byte-for-byte disk image. Hetzner snapshots/backups are still the best complete machine rollback.
 
 ### Health Checks
 
